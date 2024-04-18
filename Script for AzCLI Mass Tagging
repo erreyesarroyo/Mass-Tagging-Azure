@@ -1,0 +1,62 @@
+# Scope to Subscription
+Select-AzSubscription -SubscriptionId "Your Subscription ID"
+
+# Scope to the RG
+$resourceGroup = "uatn-apps-avd_rg_02"
+
+# Tags to add
+$tags = @{
+    "Admin Email" = "XXXXX.ctr@socom.mil"
+    "Admin POC" = "XXXXX"
+}
+
+# Tag the resource group itself
+$rg = Get-AzResourceGroup -Name $resourceGroup
+$rgExistingTags = $rg.Tags
+
+# Merge tags if existing so we dont delete current ones, only update the value in key:value
+if ($rgExistingTags -ne $null) {
+    foreach ($key in $tags.Keys) {
+        $rgExistingTags[$key] = $tags[$key]
+    }
+    $combinedRgTags = $rgExistingTags
+} else {
+    $combinedRgTags = $tags
+}
+
+# Update the resource group tags
+Set-AzResourceGroup -Name $resourceGroup -Tag $combinedRgTags
+
+# Get all resources in the scoped resource group
+$resources = Get-AzResource -ResourceGroupName $resourceGroup
+
+foreach ($resource in $resources) {
+    # Get existing tags
+    $existingTags = $resource.Tags
+
+    # If there are existing tags, merge them with new tags in support of line 17.
+    if ($existingTags -ne $null) {
+        foreach ($key in $tags.Keys) {
+            $existingTags[$key] = $tags[$key]
+        }
+        $combinedTags = $existingTags
+    } else {
+        $combinedTags = $tags
+    }
+
+    # Write the new tags
+    Set-AzResource -ResourceId $resource.ResourceId -Tag $combinedTags -Force
+}
+
+# Output the updated tags just to double tap(can be improved).
+$updatedResources = Get-AzResource -ResourceGroupName $resourceGroup
+$updatedResources | ForEach-Object {
+    Write-Output "Resource: $($_.Name)"
+    Write-Output "Tags:"
+    $_.Tags | Format-Table | Out-String | Write-Output
+}
+
+# Also output the updated tags for the resource group to double tap(can be improved). 
+Write-Output "Resource Group: $resourceGroup"
+Write-Output "Tags:"
+$combinedRgTags | Format-Table | Out-String | Write-Output
